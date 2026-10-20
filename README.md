@@ -49,7 +49,7 @@ axf inspect echo say
 axf run echo say --message hello
 ```
 
-AXF 2.1.3 is published under Apache-2.0; earlier npm releases retain their
+AXF 2.1.4 is published under Apache-2.0; earlier npm releases retain their
 published terms. Outside a fitted workspace, with no root override, this example
 discovers the bundled manifests in the installed package. `doctor` reports that project root
 separately from the current execution directory. An explicit `AXF_PROJECT_ROOT`
