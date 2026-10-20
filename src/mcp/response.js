@@ -29,6 +29,7 @@ export function projectMcpResponse(
   payload,
   responseDetail = DEFAULT_AXF_RESPONSE_DETAIL,
 ) {
+  payload = withRegistryScopes(payload);
   let projected;
   if (responseDetail === "diagnostic") {
     projected = payload;
@@ -51,11 +52,7 @@ function projectStandardResponse(payload) {
   omitNullField(projected, "projectRoot");
   omitNullField(projected, "executionRoot");
 
-  if (projected.operation === "help") {
-    delete projected.projectRoot;
-    delete projected.executionRoot;
-    delete projected.notes;
-  }
+  if (projected.operation === "help") delete projected.notes;
 
   if (projected.operation === "run") {
     delete projected.input;
@@ -85,6 +82,9 @@ function projectCompactResponse(payload) {
     if (payload.operation === "run" && isRecord(payload.capability)) {
       base.capability = pickAgentValues(payload.capability, [
         "id",
+        "scope",
+        "registryScope",
+        "sideEffects",
         "lifecycleState",
       ]);
       copyPresentValue(base, payload, "data");
@@ -186,6 +186,7 @@ function compactInspect(base, payload) {
       "id",
       "summary",
       "scope",
+      "registryScope",
       "lifecycleState",
       "sideEffects",
       "argsSchema",
@@ -197,6 +198,20 @@ function compactInspect(base, payload) {
       "details",
     ]);
   }
+  if (isRecord(payload.launchPlan)) {
+    base.launchPlan = pickAgentValues(payload.launchPlan, [
+      "command",
+      "argsPrefix",
+      "requestedCommand",
+      "resolvedCommand",
+      "commandSource",
+      "launchStrategy",
+      "cwd",
+      "cwdSource",
+      "targetPath",
+      "targetSource",
+    ]);
+  }
   copyAgentValue(base, payload, "injectedDefaults");
   copyAgentValue(base, payload, "error");
   return withCompactContext(base, payload);
@@ -206,6 +221,9 @@ function compactRun(base, payload) {
   if (isRecord(payload.capability)) {
     base.capability = pickAgentValues(payload.capability, [
       "id",
+      "scope",
+      "registryScope",
+      "sideEffects",
       "lifecycleState",
     ]);
   }
@@ -257,6 +275,7 @@ function summarizeCapability(capability) {
     "id",
     "summary",
     "scope",
+    "registryScope",
     "lifecycleState",
     "sideEffects",
     "completion",
@@ -267,14 +286,31 @@ function summarizeCapability(capability) {
 }
 
 function withCompactContext(projected, payload) {
-  const projectRoot = payload.projectRoot?.root;
-  const executionRoot = payload.executionRoot?.root;
-  if (projectRoot && executionRoot && projectRoot !== executionRoot) {
-    projected.projectRoot = payload.projectRoot;
-    projected.executionRoot = payload.executionRoot;
-  }
+  copyAgentValue(projected, payload, "projectRoot");
+  copyAgentValue(projected, payload, "executionRoot");
   copyAgentValue(projected, payload, "notes");
   return projected;
+}
+
+// Registry scope controls capability discovery/naming, not provider storage or
+// authorization. Keep the existing `scope` field as a compatibility alias.
+function withRegistryScopes(payload) {
+  const projected = { ...payload };
+  if (isRecord(payload.capability)) {
+    projected.capability = withRegistryScope(payload.capability);
+  }
+  for (const field of ["capabilities", "suggestions"]) {
+    if (Array.isArray(payload[field])) {
+      projected[field] = payload[field].map(withRegistryScope);
+    }
+  }
+  return projected;
+}
+
+function withRegistryScope(capability) {
+  return isRecord(capability) && hasAgentValue(capability.scope)
+    ? { ...capability, registryScope: capability.scope }
+    : capability;
 }
 
 function withoutInvocationTrace(meta) {

@@ -48,6 +48,7 @@ const operationPayloads = [
         id: "global.echo.say",
         summary: "echo",
         scope: "global",
+        registryScope: "global",
         lifecycleState: "active",
         sideEffects: "none",
         provider: "echo",
@@ -90,6 +91,7 @@ const operationPayloads = [
       id: "global.echo.say",
       summary: "echo",
       scope: "global",
+      registryScope: "global",
       lifecycleState: "active",
       sideEffects: "none",
       sourceKind: "project-manifest",
@@ -107,6 +109,7 @@ const operationPayloads = [
       id: "global.echo.say",
       summary: "echo",
       scope: "global",
+      registryScope: "global",
       lifecycleState: "active",
       sideEffects: "none",
       argsSchema: { type: "object" },
@@ -167,6 +170,10 @@ for (const payload of operationPayloads) {
     assert.equal("workspaces" in standard, false);
     assert.equal(compact.ok, payload.ok);
     assert.equal(compact.operation, payload.operation);
+    for (const projected of [compact, standard, diagnostic]) {
+      assert.deepEqual(projected.projectRoot, root);
+      assert.deepEqual(projected.executionRoot, root);
+    }
     assert.ok(JSON.stringify(compact).length <= JSON.stringify(standard).length);
     if (payload.operation === "inspect") {
       assert.deepEqual(compact.capability.warnings, payload.capability.warnings);
@@ -432,4 +439,141 @@ test("invalid response detail fails closed with a schema-guided error", async ()
   assert.equal(result.ok, false);
   assert.equal(result.error.code, "INVALID_PARAMS");
   assert.match(result.error.message, /compact, standard, diagnostic/);
+});
+
+
+test("registryScope clarifies registry naming without claiming storage authority", () => {
+  const capability = {
+    id: "global.memory.remember",
+    scope: "global",
+    sideEffects: "write",
+    lifecycleState: "active",
+  };
+  for (const detail of ["compact", "standard", "diagnostic"]) {
+    const projected = projectMcpResponse({
+      ok: true,
+      operation: "inspect",
+      capability,
+      ...workspaceMetadata,
+    }, detail);
+    assert.equal(projected.capability.registryScope, "global");
+    assert.equal(projected.capability.scope, "global");
+    assert.equal(projected.capability.sideEffects, "write");
+    assert.equal("storageScope" in projected.capability, false);
+  }
+  assert.equal("registryScope" in capability, false);
+});
+
+test("compact inspect retains safe launch identity and cwd without framework secrets", () => {
+  const secret = "fixture-password-7291";
+  const payload = {
+    ok: true,
+    operation: "inspect",
+    capability: {
+      id: "global.memory.remember",
+      scope: "global",
+      lifecycleState: "active",
+      sideEffects: "write",
+      defaults: { password: secret },
+    },
+    launchPlan: {
+      command: "node",
+      requestedCommand: "node",
+      resolvedCommand: "/tools/node",
+      commandSource: "path:/tools/node",
+      launchStrategy: "direct",
+      argsPrefix: ["memory.mjs", "remember", "--password", secret],
+      cwd: repoRoot,
+      cwdSource: "workspace",
+      targetPath: "/tools/memory.mjs",
+      targetSource: "relative:framework",
+      env: { DATABASE_PASSWORD: secret },
+      executionTarget: { env: { PASSWORD: secret } },
+    },
+    ...workspaceMetadata,
+  };
+
+  for (const detail of ["compact", "standard", "diagnostic"]) {
+    const projected = projectMcpResponse(payload, detail);
+    assert.equal(projected.launchPlan.command, "node");
+    assert.equal(projected.launchPlan.cwd, repoRoot);
+    assert.equal(projected.launchPlan.cwdSource, "workspace");
+    assert.equal(projected.launchPlan.resolvedCommand, "/tools/node");
+    assert.deepEqual(projected.launchPlan.argsPrefix, [
+      "memory.mjs", "remember", "--password", "[REDACTED]",
+    ]);
+    assert.equal(JSON.stringify(projected).includes(secret), false);
+    if (detail === "compact") {
+      assert.equal("env" in projected.launchPlan, false);
+      assert.equal("executionTarget" in projected.launchPlan, false);
+    } else {
+      assert.equal(projected.launchPlan.env, "[REDACTED]");
+      assert.equal(projected.launchPlan.executionTarget.env, "[REDACTED]");
+    }
+  }
+});
+
+test("all successful run profiles retain provider-owned destination receipts unchanged", () => {
+  const data = {
+    status: "created",
+    receipt: {
+      destination: {
+        schemaVersion: 1,
+        identity: "verified-destination:fixture",
+        backend: { verification: "verified", identity: "backend:fixture" },
+        workspaceId: "workspace-fixture",
+        authorityVersion: 7,
+      },
+      recordId: "record-fixture",
+    },
+  };
+  const payload = {
+    ok: true,
+    operation: "run",
+    capability: {
+      id: "global.memory.remember",
+      scope: "global",
+      sideEffects: "write",
+      lifecycleState: "active",
+    },
+    data,
+    ...workspaceMetadata,
+  };
+  for (const detail of ["compact", "standard", "diagnostic"]) {
+    const projected = projectMcpResponse(payload, detail);
+    assert.equal(projected.data, data);
+    assert.deepEqual(projected.data.receipt, data.receipt);
+    assert.equal(projected.capability.registryScope, "global");
+    assert.equal(projected.capability.sideEffects, "write");
+  }
+});
+
+
+test("every inspect detail redacts credentials supplied only in launch arguments", () => {
+  const secrets = ["fixture-only-paired-49", "fixture-only-equals-59"];
+  const payload = {
+    ok: true,
+    operation: "inspect",
+    capability: {
+      id: "global.memory.remember",
+      scope: "global",
+      sideEffects: "write",
+    },
+    launchPlan: {
+      command: "tool",
+      argsPrefix: ["remember", "--password", secrets[0], `--client-secret=${secrets[1]}`],
+      cwd: repoRoot,
+    },
+    ...workspaceMetadata,
+  };
+  for (const detail of ["compact", "standard", "diagnostic"]) {
+    const projected = projectMcpResponse(payload, detail);
+    assert.deepEqual(projected.launchPlan.argsPrefix, [
+      "remember", "--password", "[REDACTED]", "--client-secret=[REDACTED]",
+    ]);
+    assert.equal(projected.launchPlan.cwd, repoRoot);
+    for (const secret of secrets) {
+      assert.equal(JSON.stringify(projected).includes(secret), false);
+    }
+  }
 });

@@ -103,6 +103,7 @@ export function summarizeCapabilityForDiscovery(capability) {
     id: capability.id,
     summary: capability.summary,
     scope: capability.scope,
+    registryScope: capability.scope,
     lifecycleState: capability.lifecycleState,
     sideEffects: capability.sideEffects,
     ...(capability.completion ? { completion: capability.completion } : {}),

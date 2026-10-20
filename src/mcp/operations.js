@@ -754,6 +754,7 @@ function summarizeCapability(capability) {
   return {
     id: capability.id,
     scope: capability.scope,
+    sideEffects: capability.sideEffects,
     lifecycleState: capability.lifecycleState,
     adapterType: capability.adapterType,
     provider: capability.provider,

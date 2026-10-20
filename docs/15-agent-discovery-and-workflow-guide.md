@@ -125,8 +125,8 @@ Use the three named profiles deliberately:
 
 - `compact` returns the minimum safe operation result. Failures remain
   actionable, and `inspect` still retains lifecycle, side effects, policies,
-  defaults, output modes, and the argument schema. This is the agent-first
-  default.
+  defaults, output modes, the argument schema, and a redacted CLI launch
+  summary. This is the agent-first default.
 - `standard` returns the expanded canonical result without legacy aliases or
   invocation traces.
 - `diagnostic` explicitly returns compatibility, provenance, workspace,
@@ -152,8 +152,20 @@ to 25 entries. An explicit `limit` replaces that bound. Explicit `standard` or
 selection.
 
 AXF 2.0 changes the implicit MCP response from the pre-2.0 rich envelope to
-`compact`. Request `diagnostic` wherever a caller deliberately consumes
-provenance or launch metadata.
+`compact`. Request `diagnostic` wherever a caller deliberately consumes expanded
+provenance, adapter, or invocation metadata. Compact CLI inspection retains the
+command, argument prefix, resolved target, working directory, and their sources;
+it omits the raw execution target and environment. Framework credential
+redaction applies to every profile.
+
+All profiles retain bound `projectRoot` and `executionRoot`, even when equal.
+MCP capability entries expose `registryScope` as the explicit name for AXF
+registry naming/discovery scope and retain `scope` for compatibility. A value
+of `global` does not identify a global storage destination or an access grant.
+AXF does not derive `storageScope` from a capability ID, manifest scope, or
+filesystem root. Provider destination preflights and write receipts pass through
+unchanged in capability-owned `data`; callers must evaluate the provider's
+verified identity and authority contract.
 
 Project and execution roots identify filesystem bindings, not security
 principals. Environment-provided roots are compatibility/configuration inputs

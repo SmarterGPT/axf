@@ -405,6 +405,15 @@ success and failure results. Diagnostic framework metadata is redacted for
 sensitive field names and values. Response detail never truncates, redacts, or
 otherwise transforms capability-owned `data`.
 
+All response profiles retain bound `projectRoot` and `executionRoot`, including
+when both roots identify the same checkout. MCP capability entries expose
+`registryScope` alongside the compatible `scope` field. `global` identifies an
+AXF registry namespace; it says nothing about a provider's storage destination.
+CLI `inspect` results retain a redacted command/argument/working-directory
+launch summary even at compact detail. Roots and launch metadata describe
+routing, not provider authorization. A provider's destination preflight and write
+receipt remain provider-owned `data` and pass through unchanged.
+
 ```json
 {
   "operation": "run",

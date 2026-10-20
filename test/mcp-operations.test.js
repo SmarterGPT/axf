@@ -886,3 +886,48 @@ test("axf scout_check stays read only", async () => {
   assert.equal(result.readOnly, true);
   assert.equal("changes" in result, false);
 });
+
+
+test("AXF inspect retains equal explicit roots, registry scope, effects, and launch plan at every detail", async () => {
+  const projectRoot = await tempAxfRoot("axf-mcp-destination-inspect-");
+  try {
+    await writeFamily(projectRoot, "memory", {
+      manifestVersion: "axf/v0",
+      family: "memory",
+      scope: "global",
+      provider: "memory",
+      adapterType: "cli",
+      lifecycleState: "active",
+      commands: {
+        remember: {
+          summary: "Write a scoped memory record",
+          executionTarget: { command: process.execPath, args: ["remember", "--json"] },
+          args: {},
+          sideEffects: "write",
+        },
+      },
+    });
+    for (const responseDetail of ["compact", "standard", "diagnostic"]) {
+      const result = await performOperation({
+        operation: "inspect",
+        projectRoot,
+        executionRoot: projectRoot,
+        target: { id: "global.memory.remember" },
+        responseDetail,
+      });
+      assert.equal(result.ok, true);
+      assert.equal(result.projectRoot.root, projectRoot);
+      assert.equal(result.executionRoot.root, projectRoot);
+      assert.equal(result.projectRoot.source, "explicit");
+      assert.equal(result.executionRoot.source, "explicit");
+      assert.equal(result.capability.registryScope, "global");
+      assert.equal(result.capability.scope, "global");
+      assert.equal(result.capability.sideEffects, "write");
+      assert.equal(result.launchPlan.cwd, projectRoot);
+      assert.equal(result.launchPlan.requestedCommand, process.execPath);
+      assert.deepEqual(result.launchPlan.argsPrefix, ["remember", "--json"]);
+    }
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});

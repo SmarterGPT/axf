@@ -145,6 +145,7 @@ test("compact discovery exposes provenance and applies search, effects, and boun
       id: "global.demo.context",
       summary: "Read bounded project context",
       scope: "global",
+      registryScope: "global",
       lifecycleState: "active",
       sideEffects: "read",
       sourceKind: "project-manifest",
