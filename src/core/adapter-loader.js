@@ -20,7 +20,7 @@
 // exposes the type adapter; the provider can pre-process args, delegate
 // to the type adapter, post-process the result, or all three.
 
-import { readFile, readdir, realpath } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { AxError } from "./errors.js";
@@ -87,6 +87,19 @@ async function pathsEqual(a, b) {
   }
 }
 
+async function hasAdapterDeclaration(adapterDir) {
+  try {
+    // lstat recognizes a declared but dangling manifest symlink too;
+    // the strict loader should report that failure rather than skip it.
+    await lstat(path.join(adapterDir, "adapter.manifest.json"));
+    return true;
+  } catch (error) {
+    // Source-only directories are not AXF adapters. Other filesystem
+    // failures still go through loadAdapter's normal error reporting.
+    return error.code !== "ENOENT";
+  }
+}
+
 export class AdapterRegistry {
   constructor(rootDir) {
     this.rootDir = rootDir;
@@ -118,7 +131,9 @@ export class AdapterRegistry {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      await this.loadAdapter(path.join(adaptersRoot, entry.name));
+      const adapterDir = path.join(adaptersRoot, entry.name);
+      if (!await hasAdapterDeclaration(adapterDir)) continue;
+      await this.loadAdapter(adapterDir);
     }
   }
 
@@ -182,7 +197,9 @@ export class AdapterRegistry {
       }
       for (const entry of adapterDirs) {
         if (!entry.isDirectory()) continue;
-        await this.loadAdapter(path.join(tsAdaptersRoot, entry.name), {
+        const adapterDir = path.join(tsAdaptersRoot, entry.name);
+        if (!await hasAdapterDeclaration(adapterDir)) continue;
+        await this.loadAdapter(adapterDir, {
           toolspace: ts.name,
         });
       }
