@@ -4,6 +4,13 @@ This is the concrete file contract used by axf. It is intentionally
 small. Add complexity only when a real adapter justifies it. See
 [`04-adapter-contract.md`](04-adapter-contract.md) for the full model.
 
+Discovery under `adapters/` and `toolspaces/<toolspace>/adapters/` loads
+only directories that declare `adapter.manifest.json`. Other directories
+may hold product source code and are ignored. A present but invalid or
+unreadable manifest is still a load error, and a capability referencing an
+unavailable adapter still fails validation or execution. Explicit
+`loadAdapter` calls also report a missing manifest as an error.
+
 ## Type adapter
 
 ```
