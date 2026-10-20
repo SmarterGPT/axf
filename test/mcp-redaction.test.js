@@ -131,3 +131,67 @@ for (const { field, secret } of [
     );
   });
 }
+
+
+for (const { flag, secret } of [
+  { flag: "--password", secret: "fixture-only-password-49" },
+  { flag: "--client-secret", secret: "fixture-only-client-59" },
+  { flag: "--connection-string", secret: "fixture-only-dsn-69" },
+  { flag: "--accessToken", secret: "fixture-only-token-79" },
+  { flag: "-Password", secret: "fixture-only-powershell-89" },
+]) {
+  for (const inline of [false, true]) {
+    test(`redacts standalone argv ${flag} ${inline ? "equals" : "paired"} credentials`, () => {
+      const args = inline ? [`${flag}=${secret}`] : [flag, secret];
+      const projected = {
+        launchPlan: { argsPrefix: args },
+        meta: {
+          args,
+          argv: args,
+          message: `provider rejected ${secret}`,
+        },
+        capability: { executionTarget: { args } },
+      };
+      const redacted = redactMcpResponse(projected);
+      const expected = inline ? [`${flag}=[REDACTED]`] : [flag, "[REDACTED]"];
+      assert.deepEqual(redacted.launchPlan.argsPrefix, expected);
+      assert.deepEqual(redacted.meta.args, expected);
+      assert.deepEqual(redacted.meta.argv, expected);
+      assert.deepEqual(redacted.capability.executionTarget.args, expected);
+      assert.equal(redacted.meta.message, "provider rejected [REDACTED]");
+      assert.equal(JSON.stringify(redacted).includes(secret), false);
+      assert.deepEqual(projected.launchPlan.argsPrefix, args);
+    });
+  }
+}
+
+test("argv redaction does not infer unknown short aliases or flags after --", () => {
+  const args = ["-p", "ordinary-value", "--", "--password", "positional-value"];
+  const data = { argsPrefix: ["--password", "provider-owned-value"] };
+  const projected = {
+    launchPlan: { argsPrefix: args },
+    labels: ["--password", "ordinary-label"],
+    data,
+  };
+  const redacted = redactMcpResponse(projected);
+  assert.deepEqual(redacted.launchPlan.argsPrefix, args);
+  assert.deepEqual(redacted.labels, projected.labels);
+  assert.equal(redacted.data, data);
+});
+
+
+test("argv redaction still scans a sensitive flag adjacent to another sensitive flag", () => {
+  const secret = "fixture-only-adjacent-49";
+  const projected = {
+    launchPlan: { argsPrefix: ["--password", "--accessToken", secret] },
+  };
+  const redacted = redactMcpResponse(projected);
+  assert.equal(JSON.stringify(redacted).includes(secret), false);
+  assert.equal(redacted.launchPlan.argsPrefix[2], "[REDACTED]");
+});
+
+test("argv -- sentinel immediately after a sensitive flag ends option interpretation", () => {
+  const args = ["--password", "--", "--accessToken", "positional-value"];
+  const redacted = redactMcpResponse({ launchPlan: { argsPrefix: args } });
+  assert.deepEqual(redacted.launchPlan.argsPrefix, args);
+});

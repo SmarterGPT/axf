@@ -44,6 +44,8 @@ Before running, inspect at least:
 
 - `lifecycleState` — whether the capability appears in the normal surface;
 - `sideEffects` — the declared effect category;
+- `registryScope` — the MCP name for registry scope (`scope` remains a
+  compatibility field), separate from any provider storage scope;
 - `policies` — runtime conditions AXF will enforce;
 - `argsSchema` and `argMap` — public inputs and provider spellings;
 - `launchPlan` — command, arguments, target, and working directory for CLI
@@ -55,6 +57,13 @@ A lifecycle label is declared routing state, not proof that a person reviewed
 the command or authorized this invocation. `active` means normally
 discoverable and runnable. The caller or host must still evaluate side effects,
 provider identity, repository policy, and the requested arguments.
+
+Compact MCP inspection retains the redacted CLI launch summary and both bound
+roots, including equal roots. These are routing facts. Use the provider's own
+payload-free destination inspection when available to establish backend,
+workspace, binding, principal, and authority before a write. AXF preserves that
+result and subsequent write receipts in `data` at every response detail; it
+does not infer authorization from `registryScope: "global"` or equal roots.
 
 ## Typed continuations
 

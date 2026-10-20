@@ -42,6 +42,8 @@ const SENSITIVE_FIELD_SUFFIXES = Object.freeze([
   "token",
 ]);
 
+const ARGUMENT_VECTOR_FIELDS = new Set(["args", "argsPrefix", "argv"]);
+
 const SENSITIVE_SCHEMA_VALUE_FIELDS = new Set([
   "default",
   "example",
@@ -62,6 +64,9 @@ function collectSensitiveValues(value, collected = new Set(), path = []) {
   if (value === null || value === undefined) return collected;
 
   if (Array.isArray(value)) {
+    if (ARGUMENT_VECTOR_FIELDS.has(path.at(-1))) {
+      collectSensitiveArgumentValues(value, collected);
+    }
     for (const item of value) collectSensitiveValues(item, collected, path);
     return collected;
   }
@@ -82,6 +87,24 @@ function collectSensitiveValues(value, collected = new Set(), path = []) {
   }
 
   return collected;
+}
+
+// Only interpret framework argv fields, never provider-owned data or arbitrary
+// strings. Long option names use the same credential policy as object fields;
+// unknown short aliases are not guessed, and `--` ends option interpretation.
+function collectSensitiveArgumentValues(args, collected) {
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === "--") break;
+    if (typeof argument !== "string") continue;
+    const option = /^--?([^=\s]+)(?:=([\s\S]*))?$/u.exec(argument);
+    if (!option || !isSensitiveField(option[1])) continue;
+    if (option[2] !== undefined) {
+      collectScalarStrings(option[2], collected);
+    } else if (index + 1 < args.length && args[index + 1] !== "--") {
+      collectScalarStrings(args[index + 1], collected);
+    }
+  }
 }
 
 function collectScalarStrings(value, collected) {
